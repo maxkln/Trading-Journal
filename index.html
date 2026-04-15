@@ -1,248 +1,353 @@
-import SwiftUI
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading Journal</title>
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="manifest.json" />
 
-struct TradeEntry: Identifiable {
-    let id = UUID()
-    let date: Date
-    let amount: Double
-    let note: String
-    let isOverallAdjustment: Bool
-}
-
-struct ContentView: View {
-    @State private var entries: [TradeEntry] = []
-    @State private var amountText: String = ""
-    @State private var noteText: String = ""
-    @State private var overallAmountText: String = ""
-
-    private var totalPnL: Double {
-        entries.reduce(0) { $0 + $1.amount }
+  <style>
+    * {
+      box-sizing: border-box;
     }
 
-    private var weeklyPnL: Double {
-        let calendar = Calendar.current
-        let now = Date()
-
-        return entries
-            .filter { calendar.isDate($0.date, equalTo: now, toGranularity: .weekOfYear) }
-            .reduce(0) { $0 + $1.amount }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      padding: 16px;
     }
 
-    private var monthlyPnL: Double {
-        let calendar = Calendar.current
-        let now = Date()
-
-        return entries
-            .filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
-            .reduce(0) { $0 + $1.amount }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
     }
 
-    private var sortedEntries: [TradeEntry] {
-        entries.sorted { $0.date > $1.date }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
     }
 
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                headerCard
-                summaryCards
-                inputCard
-                overallAdjustmentCard
-                entriesList
-            }
-            .padding()
-            .navigationTitle("Trading Journal")
-        }
+    .card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
     }
 
-    private var headerCard: some View {
-        VStack(spacing: 10) {
-            Text("Gesamt")
-                .font(.headline)
-                .foregroundColor(.secondary)
-
-            Text(currencyString(totalPnL))
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(totalPnL >= 0 ? .green : .red)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
+    .title-small {
+      color: #94a3b8;
+      font-size: 14px;
+      margin-bottom: 8px;
     }
 
-    private var summaryCards: some View {
-        HStack(spacing: 12) {
-            VStack(spacing: 8) {
-                Text("Wöchentlich")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Text(currencyString(weeklyPnL))
-                    .font(.headline)
-                    .foregroundColor(weeklyPnL >= 0 ? .green : .red)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(16)
-
-            VStack(spacing: 8) {
-                Text("Monatlich")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-
-                Text(currencyString(monthlyPnL))
-                    .font(.headline)
-                    .foregroundColor(monthlyPnL >= 0 ? .green : .red)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(16)
-        }
+    .big-value {
+      font-size: 32px;
+      font-weight: bold;
     }
 
-    private var inputCard: some View {
-        VStack(spacing: 12) {
-            TextField("Betrag, z. B. 120 oder -50", text: $amountText)
-                .keyboardType(.decimalPad)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            TextField("Notiz (optional)", text: $noteText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            Button(action: addEntry) {
-                Text("Eintrag speichern")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
     }
 
-    private var overallAdjustmentCard: some View {
-        VStack(spacing: 12) {
-            Text("Gesamten Gewinn / Verlust hinzufügen")
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            TextField("Gesamtbetrag, z. B. 500 oder -200", text: $overallAmountText)
-                .keyboardType(.decimalPad)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-            Button(action: addOverallAdjustment) {
-                Text("Gesamtbetrag hinzufügen")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
+    input, button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 12px;
+      border: none;
+      font-size: 16px;
     }
 
-    private var entriesList: some View {
-        Group {
-            if entries.isEmpty {
-                Spacer()
-                Text("Noch keine Einträge vorhanden")
-                    .foregroundColor(.secondary)
-                Spacer()
-            } else {
-                List {
-                    ForEach(sortedEntries) { entry in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(formattedDate(entry.date))
-                                    .font(.headline)
-
-                                Spacer()
-
-                                Text(currencyString(entry.amount))
-                                    .fontWeight(.bold)
-                                    .foregroundColor(entry.amount >= 0 ? .green : .red)
-                            }
-
-                            if entry.isOverallAdjustment {
-                                Text("Manuell hinzugefügter Gesamtbetrag")
-                                    .font(.subheadline)
-                                    .foregroundColor(.orange)
-                            }
-
-                            if !entry.note.isEmpty {
-                                Text(entry.note)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .onDelete(perform: deleteEntry)
-                }
-                .listStyle(PlainListStyle())
-            }
-        }
+    input {
+      background: #334155;
+      color: white;
+      margin-bottom: 10px;
     }
 
-    private func addEntry() {
-        let normalized = amountText.replacingOccurrences(of: ",", with: ".")
-        guard let amount = Double(normalized) else { return }
-
-        let newEntry = TradeEntry(date: Date(), amount: amount, note: noteText, isOverallAdjustment: false)
-        entries.append(newEntry)
-
-        amountText = ""
-        noteText = ""
+    input::placeholder {
+      color: #cbd5e1;
     }
 
-    private func addOverallAdjustment() {
-        let normalized = overallAmountText.replacingOccurrences(of: ",", with: ".")
-        guard let amount = Double(normalized) else { return }
-
-        let newEntry = TradeEntry(
-            date: Date(),
-            amount: amount,
-            note: "Gesamtwert übernommen",
-            isOverallAdjustment: true
-        )
-        entries.append(newEntry)
-
-        overallAmountText = ""
+    button {
+      cursor: pointer;
+      font-weight: bold;
+      margin-top: 6px;
     }
 
-    private func deleteEntry(at offsets: IndexSet) {
-        let items = sortedEntries
-        let idsToDelete = offsets.map { items[$0].id }
-        entries.removeAll { idsToDelete.contains($0.id) }
+    .btn-blue {
+      background: #2563eb;
+      color: white;
     }
 
-    private func currencyString(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "EUR"
-        formatter.locale = Locale(identifier: "de_DE")
-        return formatter.string(from: NSNumber(value: value)) ?? "0,00 €"
+    .btn-orange {
+      background: #ea580c;
+      color: white;
     }
 
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        formatter.locale = Locale(identifier: "de_DE")
-        return formatter.string(from: date)
+    .entry {
+      background: #334155;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 10px;
     }
-}
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
+    .entry-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 6px;
     }
-}
+
+    .entry-date {
+      font-weight: bold;
+    }
+
+    .green {
+      color: #22c55e;
+    }
+
+    .red {
+      color: #ef4444;
+    }
+
+    .orange {
+      color: #fb923c;
+    }
+
+    .muted {
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+
+    .empty {
+      text-align: center;
+      color: #94a3b8;
+      padding: 20px 0;
+    }
+
+    .delete-btn {
+      margin-top: 10px;
+      background: #7f1d1d;
+      color: white;
+      padding: 8px 10px;
+      font-size: 14px;
+      border-radius: 10px;
+      width: auto;
+    }
+
+    @media (max-width: 600px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .big-value {
+        font-size: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Trading Journal</h1>
+
+    <div class="card">
+      <div class="title-small">Gesamt</div>
+      <div id="totalValue" class="big-value">0,00 €</div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <div class="title-small">Wöchentlich</div>
+        <div id="weeklyValue" class="big-value" style="font-size: 22px;">0,00 €</div>
+      </div>
+
+      <div class="card">
+        <div class="title-small">Monatlich</div>
+        <div id="monthlyValue" class="big-value" style="font-size: 22px;">0,00 €</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title-small">Neuen Trade hinzufügen</div>
+      <input id="amountInput" type="number" step="0.01" placeholder="Betrag, z. B. 120 oder -50" />
+      <input id="noteInput" type="text" placeholder="Notiz (optional)" />
+      <button class="btn-blue" onclick="addTrade()">Eintrag speichern</button>
+    </div>
+
+    <div class="card">
+      <div class="title-small">Gesamten Gewinn / Verlust hinzufügen</div>
+      <input id="overallInput" type="number" step="0.01" placeholder="Gesamtbetrag, z. B. 500 oder -200" />
+      <button class="btn-orange" onclick="addOverallAdjustment()">Gesamtbetrag hinzufügen</button>
+    </div>
+
+    <div class="card">
+      <div class="title-small">Einträge</div>
+      <div id="entriesContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "tradingJournalEntriesV2";
+
+    let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+    function saveEntries() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function formatCurrency(value) {
+      return new Intl.NumberFormat("de-DE", {
+        style: "currency",
+        currency: "EUR"
+      }).format(value);
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat("de-DE", {
+        dateStyle: "medium"
+      }).format(date);
+    }
+
+    function getStartOfWeek(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + diff);
+      return d;
+    }
+
+    function isSameWeek(dateA, dateB) {
+      const startA = getStartOfWeek(dateA);
+      const startB = getStartOfWeek(dateB);
+      return startA.getTime() === startB.getTime();
+    }
+
+    function isSameMonth(dateA, dateB) {
+      return (
+        dateA.getFullYear() === dateB.getFullYear() &&
+        dateA.getMonth() === dateB.getMonth()
+      );
+    }
+
+    function addTrade() {
+      const amountInput = document.getElementById("amountInput");
+      const noteInput = document.getElementById("noteInput");
+
+      const amount = parseFloat(amountInput.value);
+      const note = noteInput.value.trim();
+
+      if (isNaN(amount)) return;
+
+      entries.push({
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        amount: amount,
+        note: note,
+        isOverallAdjustment: false
+      });
+
+      amountInput.value = "";
+      noteInput.value = "";
+
+      saveEntries();
+      render();
+    }
+
+    function addOverallAdjustment() {
+      const overallInput = document.getElementById("overallInput");
+      const amount = parseFloat(overallInput.value);
+
+      if (isNaN(amount)) return;
+
+      entries.push({
+        id: crypto.randomUUID(),
+        date: new Date().toISOString(),
+        amount: amount,
+        note: "Gesamtwert übernommen",
+        isOverallAdjustment: true
+      });
+
+      overallInput.value = "";
+
+      saveEntries();
+      render();
+    }
+
+    function deleteEntry(id) {
+      entries = entries.filter(entry => entry.id !== id);
+      saveEntries();
+      render();
+    }
+
+    function render() {
+      const now = new Date();
+
+      const total = entries.reduce((sum, entry) => sum + Number(entry.amount), 0);
+
+      const weekly = entries
+        .filter(entry => isSameWeek(new Date(entry.date), now))
+        .reduce((sum, entry) => sum + Number(entry.amount), 0);
+
+      const monthly = entries
+        .filter(entry => isSameMonth(new Date(entry.date), now))
+        .reduce((sum, entry) => sum + Number(entry.amount), 0);
+
+      const totalValue = document.getElementById("totalValue");
+      totalValue.textContent = formatCurrency(total);
+      totalValue.className = "big-value " + (total >= 0 ? "green" : "red");
+
+      const weeklyValue = document.getElementById("weeklyValue");
+      weeklyValue.textContent = formatCurrency(weekly);
+      weeklyValue.className = "big-value " + (weekly >= 0 ? "green" : "red");
+
+      const monthlyValue = document.getElementById("monthlyValue");
+      monthlyValue.textContent = formatCurrency(monthly);
+      monthlyValue.className = "big-value " + (monthly >= 0 ? "green" : "red");
+
+      const container = document.getElementById("entriesContainer");
+      container.innerHTML = "";
+
+      if (entries.length === 0) {
+        container.innerHTML = '<div class="empty">Noch keine Einträge vorhanden</div>';
+        return;
+      }
+
+      const sortedEntries = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      sortedEntries.forEach(entry => {
+        const div = document.createElement("div");
+        div.className = "entry";
+
+        const amountClass = entry.amount >= 0 ? "green" : "red";
+
+        div.innerHTML = `
+          <div class="entry-top">
+            <div class="entry-date">${formatDate(entry.date)}</div>
+            <div class="${amountClass}"><strong>${formatCurrency(entry.amount)}</strong></div>
+          </div>
+          ${entry.isOverallAdjustment ? '<div class="orange muted">Manuell hinzugefügter Gesamtbetrag</div>' : ""}
+          ${entry.note ? `<div class="muted">${entry.note}</div>` : ""}
+          <button class="delete-btn" onclick="deleteEntry('${entry.id}')">Löschen</button>
+        `;
+
+        container.appendChild(div);
+      });
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js");
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>

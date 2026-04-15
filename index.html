@@ -1,119 +1,248 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Trading Journal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+import SwiftUI
 
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#000000">
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-      padding: 20px;
-    }
-
-    h1 {
-      text-align: center;
-    }
-
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 10px;
-      border: none;
-    }
-
-    button {
-      background: #007AFF;
-      color: white;
-      font-weight: bold;
-    }
-
-    .card {
-      background: #222;
-      padding: 15px;
-      margin-top: 10px;
-      border-radius: 10px;
-    }
-
-    .green { color: #00ff88; }
-    .red { color: #ff4d4d; }
-  </style>
-</head>
-
-<body>
-
-<h1>Trading Journal</h1>
-
-<h2 id="total">0€</h2>
-
-<input id="amount" placeholder="Gewinn / Verlust (z.B. 120 oder -50)">
-<input id="note" placeholder="Notiz">
-
-<button onclick="addEntry()">Speichern</button>
-
-<div id="entries"></div>
-
-<script>
-let entries = JSON.parse(localStorage.getItem("entries") || "[]");
-
-function save() {
-  localStorage.setItem("entries", JSON.stringify(entries));
+struct TradeEntry: Identifiable {
+    let id = UUID()
+    let date: Date
+    let amount: Double
+    let note: String
+    let isOverallAdjustment: Bool
 }
 
-function addEntry() {
-  let amount = parseFloat(document.getElementById("amount").value);
-  let note = document.getElementById("note").value;
+struct ContentView: View {
+    @State private var entries: [TradeEntry] = []
+    @State private var amountText: String = ""
+    @State private var noteText: String = ""
+    @State private var overallAmountText: String = ""
 
-  if (isNaN(amount)) return;
+    private var totalPnL: Double {
+        entries.reduce(0) { $0 + $1.amount }
+    }
 
-  entries.push({
-    amount,
-    note,
-    date: new Date()
-  });
+    private var weeklyPnL: Double {
+        let calendar = Calendar.current
+        let now = Date()
 
-  save();
-  render();
+        return entries
+            .filter { calendar.isDate($0.date, equalTo: now, toGranularity: .weekOfYear) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    private var monthlyPnL: Double {
+        let calendar = Calendar.current
+        let now = Date()
+
+        return entries
+            .filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
+            .reduce(0) { $0 + $1.amount }
+    }
+
+    private var sortedEntries: [TradeEntry] {
+        entries.sorted { $0.date > $1.date }
+    }
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                headerCard
+                summaryCards
+                inputCard
+                overallAdjustmentCard
+                entriesList
+            }
+            .padding()
+            .navigationTitle("Trading Journal")
+        }
+    }
+
+    private var headerCard: some View {
+        VStack(spacing: 10) {
+            Text("Gesamt")
+                .font(.headline)
+                .foregroundColor(.secondary)
+
+            Text(currencyString(totalPnL))
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(totalPnL >= 0 ? .green : .red)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+    }
+
+    private var summaryCards: some View {
+        HStack(spacing: 12) {
+            VStack(spacing: 8) {
+                Text("Wöchentlich")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Text(currencyString(weeklyPnL))
+                    .font(.headline)
+                    .foregroundColor(weeklyPnL >= 0 ? .green : .red)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
+
+            VStack(spacing: 8) {
+                Text("Monatlich")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Text(currencyString(monthlyPnL))
+                    .font(.headline)
+                    .foregroundColor(monthlyPnL >= 0 ? .green : .red)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.systemGray6))
+            .cornerRadius(16)
+        }
+    }
+
+    private var inputCard: some View {
+        VStack(spacing: 12) {
+            TextField("Betrag, z. B. 120 oder -50", text: $amountText)
+                .keyboardType(.decimalPad)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            TextField("Notiz (optional)", text: $noteText)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            Button(action: addEntry) {
+                Text("Eintrag speichern")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+    }
+
+    private var overallAdjustmentCard: some View {
+        VStack(spacing: 12) {
+            Text("Gesamten Gewinn / Verlust hinzufügen")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            TextField("Gesamtbetrag, z. B. 500 oder -200", text: $overallAmountText)
+                .keyboardType(.decimalPad)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+
+            Button(action: addOverallAdjustment) {
+                Text("Gesamtbetrag hinzufügen")
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.orange)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(16)
+    }
+
+    private var entriesList: some View {
+        Group {
+            if entries.isEmpty {
+                Spacer()
+                Text("Noch keine Einträge vorhanden")
+                    .foregroundColor(.secondary)
+                Spacer()
+            } else {
+                List {
+                    ForEach(sortedEntries) { entry in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(formattedDate(entry.date))
+                                    .font(.headline)
+
+                                Spacer()
+
+                                Text(currencyString(entry.amount))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(entry.amount >= 0 ? .green : .red)
+                            }
+
+                            if entry.isOverallAdjustment {
+                                Text("Manuell hinzugefügter Gesamtbetrag")
+                                    .font(.subheadline)
+                                    .foregroundColor(.orange)
+                            }
+
+                            if !entry.note.isEmpty {
+                                Text(entry.note)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .onDelete(perform: deleteEntry)
+                }
+                .listStyle(PlainListStyle())
+            }
+        }
+    }
+
+    private func addEntry() {
+        let normalized = amountText.replacingOccurrences(of: ",", with: ".")
+        guard let amount = Double(normalized) else { return }
+
+        let newEntry = TradeEntry(date: Date(), amount: amount, note: noteText, isOverallAdjustment: false)
+        entries.append(newEntry)
+
+        amountText = ""
+        noteText = ""
+    }
+
+    private func addOverallAdjustment() {
+        let normalized = overallAmountText.replacingOccurrences(of: ",", with: ".")
+        guard let amount = Double(normalized) else { return }
+
+        let newEntry = TradeEntry(
+            date: Date(),
+            amount: amount,
+            note: "Gesamtwert übernommen",
+            isOverallAdjustment: true
+        )
+        entries.append(newEntry)
+
+        overallAmountText = ""
+    }
+
+    private func deleteEntry(at offsets: IndexSet) {
+        let items = sortedEntries
+        let idsToDelete = offsets.map { items[$0].id }
+        entries.removeAll { idsToDelete.contains($0.id) }
+    }
+
+    private func currencyString(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "EUR"
+        formatter.locale = Locale(identifier: "de_DE")
+        return formatter.string(from: NSNumber(value: value)) ?? "0,00 €"
+    }
+
+    private func formattedDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        formatter.locale = Locale(identifier: "de_DE")
+        return formatter.string(from: date)
+    }
 }
 
-function render() {
-  let container = document.getElementById("entries");
-  container.innerHTML = "";
-
-  let total = 0;
-
-  entries.reverse().forEach(e => {
-    total += e.amount;
-
-    let div = document.createElement("div");
-    div.className = "card";
-
-    div.innerHTML = `
-      <div>${new Date(e.date).toLocaleDateString()}</div>
-      <div class="${e.amount >= 0 ? "green" : "red"}">${e.amount}€</div>
-      <div>${e.note}</div>
-    `;
-
-    container.appendChild(div);
-  });
-
-  document.getElementById("total").innerHTML =
-    `<span class="${total >= 0 ? "green" : "red"}">${total}€</span>`;
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
 }
-
-render();
-
-// Service Worker registrieren
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js");
-}
-</script>
-
-</body>
-</html>

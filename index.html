@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Trading Journal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 10px;
+      border: none;
+    }
+
+    button {
+      background: #007AFF;
+      color: white;
+      font-weight: bold;
+    }
+
+    .card {
+      background: #222;
+      padding: 15px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+
+    .green { color: #00ff88; }
+    .red { color: #ff4d4d; }
+  </style>
+</head>
+
+<body>
+
+<h1>Trading Journal</h1>
+
+<h2 id="total">0€</h2>
+
+<input id="amount" placeholder="Gewinn / Verlust (z.B. 120 oder -50)">
+<input id="note" placeholder="Notiz">
+
+<button onclick="addEntry()">Speichern</button>
+
+<div id="entries"></div>
+
+<script>
+let entries = JSON.parse(localStorage.getItem("entries") || "[]");
+
+function save() {
+  localStorage.setItem("entries", JSON.stringify(entries));
+}
+
+function addEntry() {
+  let amount = parseFloat(document.getElementById("amount").value);
+  let note = document.getElementById("note").value;
+
+  if (isNaN(amount)) return;
+
+  entries.push({
+    amount,
+    note,
+    date: new Date()
+  });
+
+  save();
+  render();
+}
+
+function render() {
+  let container = document.getElementById("entries");
+  container.innerHTML = "";
+
+  let total = 0;
+
+  entries.reverse().forEach(e => {
+    total += e.amount;
+
+    let div = document.createElement("div");
+    div.className = "card";
+
+    div.innerHTML = `
+      <div>${new Date(e.date).toLocaleDateString()}</div>
+      <div class="${e.amount >= 0 ? "green" : "red"}">${e.amount}€</div>
+      <div>${e.note}</div>
+    `;
+
+    container.appendChild(div);
+  });
+
+  document.getElementById("total").innerHTML =
+    `<span class="${total >= 0 ? "green" : "red"}">${total}€</span>`;
+}
+
+render();
+
+// Service Worker registrieren
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js");
+}
+</script>
+
+</body>
+</html>
